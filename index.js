@@ -1,4 +1,4 @@
-const { ApolloServer, gql } = require('apollo-server')
+const { ApolloServer, UserInputError, gql } = require('apollo-server')
 const { v1: uuid } = require('uuid')
 
 let authors = [
@@ -115,7 +115,11 @@ const typeDefs = gql`
         author: String!
         published: Int!
         genres: [String!]!
-      ): Book
+      ): Book!
+      editAuthor(
+        name: String!
+        setBornTo: Int!
+      ): Author
   }
 `
 
@@ -146,6 +150,12 @@ const resolvers = {
     },
     Mutation: {
         addBook: (root, args) => {
+            if (books.find(book => book.title === args.title)) {
+                throw new UserInputError(`Book titled: ${args.title} has already been added`, {
+                    invalidArgs: args.title
+                })
+            }
+
             const book = { ...args, id: uuid() }
             books = [ ...books, book ]
             const authorNames = authors.map(author => author.name)
@@ -153,6 +163,18 @@ const resolvers = {
                 authors = [ ...authors, { name: args.author, id: uuid() } ]
             }
             return book
+        },
+        editAuthor: (root, args) => {
+            const author = authors.find(author => author.name === args.name)
+            if (!author) {
+                return null
+                // throw new UserInputError(`Author: ${args.name} has not been found`, {
+                //     invalidArgs: args.name
+                // })
+            }
+            const updatedAuthor = { ...author, born: args.setBornTo }
+            authors = authors.map(author => author.name === args.name ? updatedAuthor : author)
+            return updatedAuthor
         }
     }
 }
