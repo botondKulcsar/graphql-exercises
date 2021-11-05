@@ -137,25 +137,23 @@ const resolvers = {
         authorCount: () => Author.collection.countDocuments(),
         allBooks: async (root, args) => {
             try {
-                const books = await Book.find({}).populate('author')
+                const filter = {}
+                if (args.genre) {
+                    filter.genres = { $in: [ args.genre ]} 
+                }
+                const books = await Book.find(filter).populate('author')
                 return books
             } catch (error) {
-                console.error(error.message)
+                console.error(error)
             }
-            // if (!args.author && !args.genre) {
-            //     return books
-            // }
-            // if (!args.genre) {
-            //     return books.filter(book => book.author === args.author)
-            // }
-            // if (!args.author) {
-            //     return books.filter(book => book.genres.includes(args.genre))
-            // }
-            // return books.filter(book => book.author === args.author && book.genres.includes(args.genre))
         },
         allAuthors: async () => {
             try {
                 const authors = await Author.find({})
+                for (const author of authors) {
+                    const bookCount = await Book.find({ author: author._id}).countDocuments()
+                    author.bookCount = bookCount
+                }
                 return authors
             } catch (error) {
                 console.error(error.message)
@@ -185,18 +183,29 @@ const resolvers = {
                 console.error(error)
             }
         },
-        editAuthor: (root, args) => {
-            const author = authors.find(author => author.name === args.name)
-            if (!author) {
-                return null
+        editAuthor: async (root, args) => {
+            try {
+                const author = await Author.findOneAndUpdate({ name: args.name }, { born: args.setBornTo }, { new: true })
+                if (!author) {
+                    throw new Error('Author not found')
+                }
+                const bookCount = await Book.find({ author: author._id }).countDocuments()
+                author.bookCount = bookCount
+                return author
+            } catch (error) {
+                console.error(error)
+            }
+            // const author = authors.find(author => author.name === args.name)
+            // if (!author) {
+            //     return null
                 // throw new UserInputError(`Author: ${args.name} has not been found`, {
                 //     invalidArgs: args.name
                 // })
             }
-            const updatedAuthor = { ...author, born: args.setBornTo }
-            authors = authors.map(author => author.name === args.name ? updatedAuthor : author)
-            return updatedAuthor
-        }
+            // const updatedAuthor = { ...author, born: args.setBornTo }
+            // authors = authors.map(author => author.name === args.name ? updatedAuthor : author)
+            // return updatedAuthor
+        // }
     }
 }
 
