@@ -1,5 +1,13 @@
 const { ApolloServer, UserInputError, gql } = require('apollo-server')
-const { v1: uuid } = require('uuid')
+// const { v1: uuid } = require('uuid')
+require('dotenv').config()
+const mongoose = require('mongoose')
+const Book = require('./models/book')
+const Author = require('./models/author')
+
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('connected to MongoDB'))
+    .catch(err => console.err('connection to DB failed with error: ', err.message))
 
 let authors = [
     {
@@ -92,8 +100,8 @@ let books = [
 const typeDefs = gql`
   type Book {
       title: String!
-      author: String!
       published: Int!
+      author: Author!
       genres: [String!]!
       id: ID!
   }
@@ -125,44 +133,57 @@ const typeDefs = gql`
 
 const resolvers = {
     Query: {
-        bookCount: () => books.length,
-        authorCount: () => authors.length,
-        allBooks: (root, args) => {
-            if (!args.author && !args.genre) {
+        bookCount: () => Book.collection.countDocuments(),
+        authorCount: () => Author.collection.countDocuments(),
+        allBooks: async (root, args) => {
+            try {
+                const books = await Book.find({}).populate('author')
                 return books
+            } catch (error) {
+                console.error(error.message)
             }
-            if (!args.genre) {
-                return books.filter(book => book.author === args.author)
-            }
-            if (!args.author) {
-                return books.filter(book => book.genres.includes(args.genre))
-            }
-            return books.filter(book => book.author === args.author && book.genres.includes(args.genre))
+            // if (!args.author && !args.genre) {
+            //     return books
+            // }
+            // if (!args.genre) {
+            //     return books.filter(book => book.author === args.author)
+            // }
+            // if (!args.author) {
+            //     return books.filter(book => book.genres.includes(args.genre))
+            // }
+            // return books.filter(book => book.author === args.author && book.genres.includes(args.genre))
         },
-        allAuthors: () => {
-            const count = {}
-            for (const book of books) {
-                count[book.author] = (count[book.author] ?? 0) + 1
+        allAuthors: async () => {
+            try {
+                const authors = await Author.find({})
+                return authors
+            } catch (error) {
+                console.error(error.message)
             }
+            // const count = {}
+            // for (const book of books) {
+            //     count[book.author] = (count[book.author] ?? 0) + 1
+            // }
 
-            return authors.map(author => ({ ...author, bookCount: count[author.name] }))
+            // return authors.map(author => ({ ...author, bookCount: count[author.name] }))
         }
     },
     Mutation: {
-        addBook: (root, args) => {
-            if (books.find(book => book.title === args.title)) {
-                throw new UserInputError(`Book titled: ${args.title} has already been added`, {
-                    invalidArgs: args.title
-                })
+        addBook: async (root, args) => {
+            try {
+                let author = await Author.findOne({ name: args.author })
+                if (!author) {
+                    const newAuthor = new Author({ name: args.author})
+                    const savedAuthor = await newAuthor.save()
+                    author = savedAuthor
+                }
+                const book = new Book({ ...args, author: author._id })
+                const savedBook = await book.save()
+                await savedBook.populate('author')
+                return savedBook
+            } catch (error) {
+                console.error(error)
             }
-
-            const book = { ...args, id: uuid() }
-            books = [ ...books, book ]
-            const authorNames = authors.map(author => author.name)
-            if (!authorNames.includes(args.author)) {
-                authors = [ ...authors, { name: args.author, id: uuid() } ]
-            }
-            return book
         },
         editAuthor: (root, args) => {
             const author = authors.find(author => author.name === args.name)
