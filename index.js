@@ -139,7 +139,7 @@ const resolvers = {
             try {
                 const filter = {}
                 if (args.genre) {
-                    filter.genres = { $in: [ args.genre ]} 
+                    filter.genres = { $in: [args.genre] }
                 }
                 const books = await Book.find(filter).populate('author')
                 return books
@@ -151,19 +151,13 @@ const resolvers = {
             try {
                 const authors = await Author.find({})
                 for (const author of authors) {
-                    const bookCount = await Book.find({ author: author._id}).countDocuments()
+                    const bookCount = await Book.find({ author: author._id }).countDocuments()
                     author.bookCount = bookCount
                 }
                 return authors
             } catch (error) {
-                console.error(error.message)
+                console.error(error)
             }
-            // const count = {}
-            // for (const book of books) {
-            //     count[book.author] = (count[book.author] ?? 0) + 1
-            // }
-
-            // return authors.map(author => ({ ...author, bookCount: count[author.name] }))
         }
     },
     Mutation: {
@@ -171,7 +165,7 @@ const resolvers = {
             try {
                 let author = await Author.findOne({ name: args.author })
                 if (!author) {
-                    const newAuthor = new Author({ name: args.author})
+                    const newAuthor = new Author({ name: args.author })
                     const savedAuthor = await newAuthor.save()
                     author = savedAuthor
                 }
@@ -180,7 +174,11 @@ const resolvers = {
                 await savedBook.populate('author')
                 return savedBook
             } catch (error) {
-                console.error(error)
+                if (error instanceof mongoose.Error.ValidationError) {
+                    throw new UserInputError(`Invalid title or author name`, {
+                        // invalidArgs: args.title || args.author,
+                    })
+                }
             }
         },
         editAuthor: async (root, args) => {
@@ -193,19 +191,11 @@ const resolvers = {
                 author.bookCount = bookCount
                 return author
             } catch (error) {
-                console.error(error)
+                console.log(error.message)
             }
-            // const author = authors.find(author => author.name === args.name)
-            // if (!author) {
-            //     return null
-                // throw new UserInputError(`Author: ${args.name} has not been found`, {
-                //     invalidArgs: args.name
-                // })
-            }
-            // const updatedAuthor = { ...author, born: args.setBornTo }
-            // authors = authors.map(author => author.name === args.name ? updatedAuthor : author)
-            // return updatedAuthor
-        // }
+
+        }
+
     }
 }
 
